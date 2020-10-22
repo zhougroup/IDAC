@@ -7,7 +7,8 @@ Dependencies are the same as *Stable Baselines* + *Mujoco*.
 
 To run the experiment, use run_idac.py file. 
 
-bibtex:
+## Citation
+```bibtex
 @inproceedings{yue2020implicit,
   title={Implicit Distributional Reinforcement Learning},
   author={Yue, Yuguang and Wang, Zhendong and Zhou, Mingyuan},
