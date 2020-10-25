@@ -3,7 +3,7 @@ This repo contains code used in the paper *Implicit Distributional Reinforcement
 
 The code is implemented upon the *Stable Baselines* RL Benchmark. 
 
-Dependencies are the same as *Stable Baselines* + *Mujoco*. 
+Dependencies are the same as *Stable Baselines* and *Mujoco* (tensorflow: 1.15.0, tensorflow_probability: 0.8.0, gym: 0.15.4)
 
 To run the experiment, use run_idac.py file. 
 
