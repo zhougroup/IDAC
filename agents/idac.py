@@ -175,7 +175,7 @@ class IDAC(object):
                             device,
                             layer_norm=True,
                             hidden_sizes=[256, 256]).to(device)
-        self.gf2_optimizer = torch.optim.Adam(self.gf1.parameters(), lr=critic_lr)
+        self.gf2_optimizer = torch.optim.Adam(self.gf2.parameters(), lr=critic_lr)
 
         self.gf1_target = copy.deepcopy(self.gf1)
         self.gf2_target = copy.deepcopy(self.gf2)
