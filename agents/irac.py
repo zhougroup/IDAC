@@ -175,12 +175,12 @@ class IRAC(object):
 
         self.adversarial_loss = torch.nn.BCELoss()
 
-        self.alpha = torch.FloatTensor(log_alpha, device=self.device).exp()
+        self.alpha = torch.FloatTensor([log_alpha]).exp().to(self.device)
 
     def sample_action(self, state):
         with torch.no_grad():
             state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-            action = self.actor.sample(state)
+            action = self.actor(state)
         return action.cpu().data.numpy().flatten()
 
     def quantile_regression_loss(self, input, target, tau, weight=1.0):
