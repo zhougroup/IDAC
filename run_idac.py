@@ -40,9 +40,9 @@ if __name__ == "__main__":
     # d4rl.set_dataset_path('/datasets')
 
     if args.hidden_sizes == 1:
-        args.hidden_sizes = [400, 300]
+        args.hidden_sizes = [256, 256]
     elif args.hidden_sizes == 2:
-        args.hidden_sizes = [256, 256, 64]
+        args.hidden_sizes = [400, 300]
 
     expl_env = gym.make(args.env_name)
     eval_env = gym.make(args.env_name)
@@ -69,10 +69,6 @@ if __name__ == "__main__":
     #     raise AssertionError("Experiment under this setting has been done!")
     variant = vars(args)
     variant.update(version=f"IDAC with num_quantiles {args.num_quantiles}")
-
-    if args.train_behavioral and args.generate_buffer:
-        utils.print_banner("Train_behavioral and generate_buffer cannot both be true.")
-        exit()
 
     if not os.path.exists("./results"):
         os.makedirs("./results")
