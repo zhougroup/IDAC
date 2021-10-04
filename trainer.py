@@ -46,7 +46,7 @@ class Trainer(object):
                 episode_reward += reward
 
                 if total_timesteps >= self.start_timesteps:
-                    gf1_loss, gf2_loss, actor_loss, log_pi = self.agent.train_from_batch(self.replay_buffer)
+                    loss = self.agent.train_from_batch(self.replay_buffer)
 
                 if done or (episode_timesteps == self.max_episode_steps):
                     # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
@@ -65,10 +65,18 @@ class Trainer(object):
             evaluations.append(eval_res)
             # np.save(os.path.join(output_dir, "eval"), evaluations)
             logger.record_tabular('Training Epochs', curr_epoch)
-            logger.record_tabular('GF1 Loss', gf1_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('GF2 Loss', gf2_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('Actor Loss', actor_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('Policy log_pi', log_pi.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('GF1 Loss', loss['gf1_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('GF2 Loss', loss['gf2_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('Actor Loss', loss['actor_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            if 'log_pi' in loss.keys():
+                logger.record_tabular('Policy log_pi',
+                                      loss['log_pi'] if total_timesteps >= self.start_timesteps else 0.)
+            if 'generator_loss' in loss.keys():
+                logger.record_tabular('Generator Loss',
+                                      loss['generator_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            if 'discriminator_loss' in loss.keys():
+                logger.record_tabular('Discriminator Loss',
+                                      loss['discriminator_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Average Episodic Reward', eval_res)
 
             logger.dump_tabular()

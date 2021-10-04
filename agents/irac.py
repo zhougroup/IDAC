@@ -7,25 +7,27 @@ from utils.distributions import TanhNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
+NEGATIVE_SLOPE = 1. / 100.
 
-
-class G_Actor(nn.Module):
+class Implicit_Actor(nn.Module):
     """
-    Gaussian Policy
+    Implicit Policy
     """
     def __init__(self,
                  state_dim,
                  action_dim,
+                 noise_dim,
                  max_action,
                  device,
                  hidden_sizes=[256,256],
                  layer_norm=False):
-        super(G_Actor, self).__init__()
+        super(Implicit_Actor, self).__init__()
 
         self.layer_norm = layer_norm
+        self.noise_dim = noise_dim
         self.base_fc = []
         last_size = state_dim
-        for next_size in hidden_sizes:
+        for next_size in hidden_sizes[:-1]:
             self.base_fc += [
                 nn.Linear(last_size, next_size),
                 nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
@@ -35,67 +37,47 @@ class G_Actor(nn.Module):
         self.base_fc = nn.Sequential(*self.base_fc)
 
         last_hidden_size = hidden_sizes[-1]
-        self.last_fc_mean = nn.Linear(last_hidden_size, action_dim)
-        self.last_fc_log_std = nn.Linear(last_hidden_size, action_dim)
+        self.noise_fc = nn.Sequential(
+            nn.Linear(noise_dim, last_hidden_size),
+            nn.Tanh()
+        )
 
+        self.last_fc = nn.Sequential(
+            nn.Linear(last_hidden_size, action_dim),
+            nn.Tanh()
+        )
         self.max_action = max_action
         self.device = device
 
     def forward(self, state):
+        noise = torch.randn((state.size(0), self.noise_dim), device=self.device)
 
-        h = self.base_fc(state)
-        mean = self.last_fc_mean(h)
-        std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
+        s_h = self.base_fc(state)
+        n_h = self.noise_fc(noise)
 
-        tanh_normal = TanhNormal(mean, std, self.device)
-        action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
-        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
-        log_prob = log_prob.sum(dim=1, keepdim=True)
+        h = s_h * n_h
 
-        action = action * self.max_action
-
-        return action, log_prob
-
-    def sample(self,
-               state,
-               reparameterize=False,
-               deterministic=False):
-
-        h = self.base_fc(state)
-        mean = self.last_fc_mean(h)
-        std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
-
-        if deterministic:
-            action = torch.tanh(mean) * self.max_action
-        else:
-            tanh_normal = TanhNormal(mean, std, self.device)
-            if reparameterize:
-                action = tanh_normal.rsample()
-            else:
-                action = tanh_normal.sample()
-            action = action * self.max_action
+        action = self.last_fc(h) * self.max_action
 
         return action
 
 
-class D_Critic(nn.Module):
+class Critic(nn.Module):
     """
     Implicit Distributional Critic
     """
     def __init__(self,
                  state_dim,
                  action_dim,
-                 noise_dim,
                  device,
-                 layer_norm=True,
+                 layer_norm=False,
                  hidden_sizes=[256, 256]):
-        super(D_Critic, self).__init__()
+        super(Critic, self).__init__()
 
         self.device = device
-        self.noise_dim = noise_dim
         self.layer_norm = layer_norm
         self.base_fc = []
-        last_size = state_dim + action_dim + noise_dim
+        last_size = state_dim + action_dim
         for next_size in hidden_sizes:
             self.base_fc += [
                 nn.Linear(last_size, next_size),
@@ -108,28 +90,32 @@ class D_Critic(nn.Module):
         last_hidden_size = hidden_sizes[-1]
         self.last_fc = nn.Linear(last_hidden_size, 1)
 
-    def forward(self, state, action, noise):
-        h = torch.cat([state, action, noise], dim=1)
+    def forward(self, state, action):
+        h = torch.cat([state, action], dim=1)
         h = self.base_fc(h)
-        h = self.last_fc(h)
-        return h
-
-    def sample(self, state, action, num_samples=1):
-        batch_size = state.size(0)
-        noise = torch.randn((num_samples, self.noise_dim), device=self.device)
-
-        state_rpt = torch.repeat_interleave(state, num_samples, dim=0)
-        action_rpt = torch.repeat_interleave(action, num_samples, dim=0)
-        noise_rpt = noise.repeat(batch_size, 1)
-
-        h = self.forward(state_rpt, action_rpt, noise_rpt)
-        h = h.view(batch_size, num_samples)
-        g_values = h.sort()[0]
-
-        return g_values
+        q = self.last_fc(h)
+        return q
 
 
-class IDAC(object):
+class Discriminator(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(Discriminator, self).__init__()
+        self.hidden_size = (256, 256)
+        self.model = nn.Sequential(
+            nn.Linear(state_dim + action_dim, self.hidden_size[0]),
+            nn.LeakyReLU(negative_slope=NEGATIVE_SLOPE),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.LeakyReLU(negative_slope=NEGATIVE_SLOPE),
+            nn.Linear(self.hidden_size[1], 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        validity = self.model(x)
+        return validity
+
+
+class IRAC(object):
     def __init__(
             self,
             state_dim,
@@ -142,12 +128,12 @@ class IDAC(object):
             tau,                           # target network update rate
             actor_lr,                       # actor learning rate
             critic_lr,                      # critic learning rate
+            dis_lr=2e-4,
             batch_size=256,
-            pi_bn=False,
+            pi_bn=False,                    # policy batch normalization
+            cr_bn=False,                    # critic batch normalization
             num_quantiles=21,
-            target_entropy=None,
-            alpha=0.2,
-            use_automatic_entropy_tuning=False,
+            log_alpha=2.0
     ):
         self.tau = tau
         self.device = device
@@ -157,44 +143,39 @@ class IDAC(object):
         self.action_dim = action_dim
         self.num_quantiles = num_quantiles
 
-        self.actor = G_Actor(state_dim, action_dim, max_action, device,
-                             layer_norm=pi_bn,
-                             hidden_sizes=hidden_sizes).to(device)
+        self.actor = Implicit_Actor(state_dim,
+                                    action_dim,
+                                    noise_dim,
+                                    max_action,
+                                    device,
+                                    layer_norm=pi_bn,
+                                    hidden_sizes=hidden_sizes).to(device)
         self.actor_target = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr, betas=(0.5, 0.999))
 
-        self.gf1 = D_Critic(state_dim,
-                            action_dim,
-                            noise_dim,
-                            device,
-                            layer_norm=True,
-                            hidden_sizes=hidden_sizes).to(device)
+        self.gf1 = Critic(state_dim,
+                          action_dim,
+                          device,
+                          layer_norm=cr_bn,
+                          hidden_sizes=hidden_sizes).to(device)
         self.gf1_optimizer = torch.optim.Adam(self.gf1.parameters(), lr=critic_lr)
 
-        self.gf2 = D_Critic(state_dim,
-                            action_dim,
-                            noise_dim,
-                            device,
-                            layer_norm=True,
-                            hidden_sizes=hidden_sizes).to(device)
+        self.gf2 = Critic(state_dim,
+                          action_dim,
+                          device,
+                          layer_norm=cr_bn,
+                          hidden_sizes=hidden_sizes).to(device)
         self.gf2_optimizer = torch.optim.Adam(self.gf2.parameters(), lr=critic_lr)
 
         self.gf1_target = copy.deepcopy(self.gf1)
         self.gf2_target = copy.deepcopy(self.gf2)
 
-        self.use_automatic_entropy_tuning = use_automatic_entropy_tuning
-        if self.use_automatic_entropy_tuning:
-            if target_entropy:
-                self.target_entropy = target_entropy
-            else:
-                self.target_entropy = -np.prod(action_dim).item()  # heuristic value from Tuomas
-            self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
-            self.alpha_optimizer = torch.optim.Adam(
-                [self.log_alpha],
-                lr=actor_lr,
-            )
-        else:
-            self.alpha = alpha
+        self.discriminator = Discriminator(state_dim=state_dim, action_dim=action_dim).to(device)
+        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=dis_lr, betas=(0.5, 0.999))
+
+        self.adversarial_loss = torch.nn.BCELoss()
+
+        self.alpha = torch.FloatTensor(log_alpha, device=self.device).exp()
 
     def sample_action(self, state):
         with torch.no_grad():
@@ -234,35 +215,21 @@ class IDAC(object):
 
     def train_from_batch(self, replay_buffer):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
-        """
-        Update Alpha
-        """
-        new_actions, log_pi = self.actor(obs)
-        if self.use_automatic_entropy_tuning:
-            alpha_loss = -(self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
-            self.alpha_optimizer.zero_grad()
-            alpha_loss.backward()
-            self.alpha_optimizer.step()
-            alpha = self.log_alpha.exp()
-        else:
-            alpha_loss = 0
-            alpha = self.alpha
+
         """
         Update Distributional Critics
         """
         with torch.no_grad():
-            new_next_actions, new_log_pi = self.actor_target(next_obs)
-            target_g1_values = self.gf1_target.sample(next_obs, new_next_actions, num_samples=self.num_quantiles)
-            target_g2_values = self.gf2_target.sample(next_obs, new_next_actions, num_samples=self.num_quantiles)
-            target_g_values = torch.min(target_g1_values, target_g2_values) - alpha * new_log_pi
+            new_next_actions = self.actor_target(next_obs)
+            target_g1_values = self.gf1_target(next_obs, new_next_actions)
+            target_g2_values = self.gf2_target(next_obs, new_next_actions)
+            target_g_values = torch.min(target_g1_values, target_g2_values)
             g_target = rewards + not_dones * self.discount * target_g_values
 
-        tau_hat_1 = self.get_tau(obs)
-        tau_hat_2 = self.get_tau(obs)
-        g1_pred = self.gf1.sample(obs, actions, num_samples=self.num_quantiles)
-        g2_pred = self.gf2.sample(obs, actions, num_samples=self.num_quantiles)
-        gf1_loss = self.quantile_regression_loss(g1_pred, g_target, tau_hat_1)
-        gf2_loss = self.quantile_regression_loss(g2_pred, g_target, tau_hat_2)
+        g1_pred = self.gf1(obs, actions)
+        g2_pred = self.gf2(obs, actions)
+        gf1_loss = F.mse_loss(g1_pred, g_target)
+        gf2_loss = F.mse_loss(g2_pred, g_target)
 
         self.gf1_optimizer.zero_grad()
         gf1_loss.backward()
@@ -274,14 +241,33 @@ class IDAC(object):
         """
         Update Policy
         """
-        q1_new_actions = self.gf1.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q2_new_actions = self.gf2.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q_new_actions = torch.min(q1_new_actions, q2_new_actions)
+        new_actions = self.actor(obs)
+        q1_new_actions = self.gf1(obs, new_actions)
+        q2_new_actions = self.gf2(obs, new_actions)
+        q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
 
-        policy_loss = (alpha * log_pi - q_new_actions).mean()
+        obs_g, _, _, _, _ = replay_buffer.sample(self.batch_size)
+        actions_g = self.actor(obs_g)
+        fake_samples = torch.cat([obs_g, actions_g], 1)
+        generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
+                                               torch.ones(fake_samples.size(0), 1, device=self.device))
+
+        policy_loss = - self.alpha * generator_loss - q_new_actions
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
         self.actor_optimizer.step()
+        """
+        Update Discriminator
+        """
+        true_samples = torch.cat([obs, actions], 1)
+        real_loss = self.adversarial_loss(self.discriminator(true_samples),
+                                          torch.ones(fake_samples.size(0), 1, device=self.device))
+        fake_loss = self.adversarial_loss(self.discriminator(fake_samples.detach()),
+                                          torch.zeros(fake_samples.size(0), 1, device=self.device))
+        discriminator_loss = (real_loss + fake_loss) / 2
+        self.discriminator_optimizer.zero_grad()
+        discriminator_loss.backward()
+        self.discriminator_optimizer.step()
         """
         Soft Updates
         """
@@ -299,7 +285,8 @@ class IDAC(object):
             gf1_loss=gf1_loss.cpu().data.numpy(),
             gf2_loss=gf2_loss.cpu().data.numpy(),
             actor_loss=policy_loss.cpu().data.numpy(),
-            log_pi=log_pi.mean().cpu().data.numpy()
+            generator_loss=generator_loss.cpu().data.numpy(),
+            discriminator_loss=discriminator_loss.cpu().data.numpy()
         )
 
 
