@@ -246,17 +246,6 @@ class IDAC(object):
             alpha_loss = 0
             alpha = self.alpha
         """
-        Update Policy
-        """
-        q1_new_actions = self.gf1.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q2_new_actions = self.gf2.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q_new_actions = torch.min(q1_new_actions, q2_new_actions)
-
-        policy_loss = (alpha * log_pi - q_new_actions).mean()
-        self.actor_optimizer.zero_grad()
-        policy_loss.backward()
-        self.actor_optimizer.step()
-        """
         Update Distributional Critics
         """
         with torch.no_grad():
@@ -280,6 +269,17 @@ class IDAC(object):
         self.gf2_optimizer.zero_grad()
         gf2_loss.backward()
         self.gf2_optimizer.step()
+        """
+        Update Policy
+        """
+        q1_new_actions = self.gf1.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
+        q2_new_actions = self.gf2.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
+        q_new_actions = torch.min(q1_new_actions, q2_new_actions)
+
+        policy_loss = (alpha * log_pi - q_new_actions).mean()
+        self.actor_optimizer.zero_grad()
+        policy_loss.backward()
+        self.actor_optimizer.step()
         """
         Soft Updates
         """
