@@ -8,6 +8,7 @@ from utils.distributions import TanhNormal
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 
+
 class G_Actor(nn.Module):
     """
     Gaussian Policy
@@ -24,7 +25,7 @@ class G_Actor(nn.Module):
         self.layer_norm = layer_norm
         self.base_fc = []
         last_size = state_dim
-        for next_size in hidden_sizes[:-1]:
+        for next_size in hidden_sizes:
             self.base_fc += [
                 nn.Linear(last_size, next_size),
                 nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
@@ -76,6 +77,7 @@ class G_Actor(nn.Module):
 
         return action
 
+
 class D_Critic(nn.Module):
     """
     Implicit Distributional Critic
@@ -94,7 +96,7 @@ class D_Critic(nn.Module):
         self.layer_norm = layer_norm
         self.base_fc = []
         last_size = state_dim + action_dim + noise_dim
-        for next_size in hidden_sizes[:-1]:
+        for next_size in hidden_sizes:
             self.base_fc += [
                 nn.Linear(last_size, next_size),
                 nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
