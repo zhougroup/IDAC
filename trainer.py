@@ -48,7 +48,7 @@ class Trainer(object):
                 if total_timesteps >= self.start_timesteps:
                     gf1_loss, gf2_loss, actor_loss, log_pi = self.agent.train_from_batch(self.replay_buffer)
 
-                if done:
+                if done or (episode_timesteps == self.max_episode_steps):
                     # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
                     utils.print_banner(
                         f"Total T: {total_timesteps + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
@@ -60,19 +60,18 @@ class Trainer(object):
 
             # TODO: add code
             # Evaluate episode
-            if total_timesteps >= self.start_timesteps:
-                utils.print_banner(f"Train step: {total_timesteps}", separator="*", num_star=90)
-                eval_res = self.eval_policy()
-                evaluations.append(eval_res)
-                # np.save(os.path.join(output_dir, "eval"), evaluations)
-                logger.record_tabular('Training Epochs', curr_epoch)
-                logger.record_tabular('GF1 Loss', gf1_loss.cpu().data.numpy())
-                logger.record_tabular('GF2 Loss', gf2_loss.cpu().data.numpy())
-                logger.record_tabular('Actor Loss', actor_loss.cpu().data.numpy())
-                logger.record_tabular('Policy log_pi', log_pi.cpu().data.numpy())
-                logger.record_tabular('Average Episodic Reward', eval_res)
+            utils.print_banner(f"Train step: {total_timesteps}", separator="*", num_star=90)
+            eval_res = self.eval_policy()
+            evaluations.append(eval_res)
+            # np.save(os.path.join(output_dir, "eval"), evaluations)
+            logger.record_tabular('Training Epochs', curr_epoch)
+            logger.record_tabular('GF1 Loss', gf1_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('GF2 Loss', gf2_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('Actor Loss', actor_loss.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('Policy log_pi', log_pi.cpu().data.numpy() if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('Average Episodic Reward', eval_res)
 
-                logger.dump_tabular()
+            logger.dump_tabular()
 
     # Runs policy for X episodes and returns average reward
     # A fixed seed is used for the eval environment

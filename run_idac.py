@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
     parser.add_argument("--pi_bn", default=0, type=int)
     parser.add_argument("--num_quantiles", default=50, type=int)
-    parser.add_argument("--use_automatic_entropy_tuning", default=False, type=int)
+    parser.add_argument("--use_automatic_entropy_tuning", default=True, type=int)
 
     args = parser.parse_args()
     # d4rl.set_dataset_path('/datasets')
