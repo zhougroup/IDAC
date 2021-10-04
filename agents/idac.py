@@ -116,8 +116,8 @@ class D_Critic(nn.Module):
         batch_size = state.size(0)
         noise = torch.randn((num_samples, self.noise_dim), device=self.device)
 
-        state_rpt = torch.repeat_interleave(state, num_samples, dim=1)
-        action_rpt = torch.repeat_interleave(action, num_samples, dim=1)
+        state_rpt = torch.repeat_interleave(state, num_samples, dim=0)
+        action_rpt = torch.repeat_interleave(action, num_samples, dim=0)
         noise_rpt = noise.repeat(batch_size, 1)
 
         h = self.forward(state_rpt, action_rpt, noise_rpt)
