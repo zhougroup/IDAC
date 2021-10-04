@@ -46,6 +46,8 @@ class Trainer(object):
 
                 if total_timesteps >= self.start_timesteps:
                     gf1_loss, gf2_loss, actor_loss, log_pi = self.agent.train_from_batch(self.replay_buffer)
+                else:
+                    gf1_loss, gf2_loss, actor_loss, log_pi = 0., 0., 0., 0.
 
                 if done:
                     # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
