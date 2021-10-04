@@ -140,7 +140,7 @@ class IDAC(object):
             tau,                           # target network update rate
             actor_lr,                       # actor learning rate
             critic_lr,                      # critic learning rate
-            batch_size=512,
+            batch_size=256,
             pi_bn=False,
             num_quantiles=21,
             target_entropy=None,
@@ -156,8 +156,8 @@ class IDAC(object):
         self.num_quantiles = num_quantiles
 
         self.actor = G_Actor(state_dim, action_dim, max_action, device,
-                             hidden_sizes=hidden_sizes,
-                             layer_norm=pi_bn).to(device)
+                             layer_norm=pi_bn,
+                             hidden_sizes=hidden_sizes).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
@@ -166,7 +166,7 @@ class IDAC(object):
                             noise_dim,
                             device,
                             layer_norm=True,
-                            hidden_sizes=[256, 256]).to(device)
+                            hidden_sizes=hidden_sizes).to(device)
         self.gf1_optimizer = torch.optim.Adam(self.gf1.parameters(), lr=critic_lr)
 
         self.gf2 = D_Critic(state_dim,
@@ -174,7 +174,7 @@ class IDAC(object):
                             noise_dim,
                             device,
                             layer_norm=True,
-                            hidden_sizes=[256, 256]).to(device)
+                            hidden_sizes=hidden_sizes).to(device)
         self.gf2_optimizer = torch.optim.Adam(self.gf2.parameters(), lr=critic_lr)
 
         self.gf1_target = copy.deepcopy(self.gf1)

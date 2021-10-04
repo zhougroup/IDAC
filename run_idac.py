@@ -14,27 +14,25 @@ if __name__ == "__main__":
     ### Experimental Setups ###
     parser.add_argument("--ExpID", default='Exp1', type=str)  # Experiment ID
     parser.add_argument('--device', default='cpu', type=str)  # device, {"cpu", "cuda", "cuda:0", "cuda:1"}, etc
-    parser.add_argument("--env_name", default="halfcheetah-v2", type=str)  # OpenAI gym environment name
+    parser.add_argument("--env_name", default="Halfcheetah-v2", type=str)  # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
-    parser.add_argument("--buffer_name", default="Robust", type=str)  # Prepends name to filename
-    parser.add_argument("--eval_freq", default=1e3, type=float)  # How often (time steps) we evaluate
     parser.add_argument("--num_epochs", default=1000, type=int)
     parser.add_argument("--num_iters_per_epoch", default=1000, type=int)
-    parser.add_argument("--start_timesteps", default=25e3, type=int)
+    parser.add_argument("--start_timesteps", default=10000, type=int)
     ### Optimization Setups ###
-    parser.add_argument("--batch_size", default=500, type=int)  # Mini batch size for networks
+    parser.add_argument("--batch_size", default=256, type=int)  # Mini batch size for networks
     parser.add_argument("--actor_lr", default=3e-4, type=float)
     parser.add_argument("--critic_lr", default=3e-4, type=float)
     ### IDAC Parameters ###
     parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
     parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
-    parser.add_argument("--noise_dim", default=None, type=int)
+    parser.add_argument("--noise_dim", default=5, type=int)
     parser.add_argument("--alpha", default=0.2, type=float)
     parser.add_argument("--target_entropy", default=None, type=float)
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
     parser.add_argument("--pi_bn", default=0, type=int)
-    parser.add_argument("--num_quantiles", default=21, type=int)
-    parser.add_argument("--use_automatic_entropy_tuning", default=True, type=int)
+    parser.add_argument("--num_quantiles", default=50, type=int)
+    parser.add_argument("--use_automatic_entropy_tuning", default=False, type=int)
 
     args = parser.parse_args()
     # d4rl.set_dataset_path('/datasets')
