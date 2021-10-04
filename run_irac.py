@@ -5,7 +5,7 @@ import os
 import torch
 
 from agents.irac import IRAC
-from trainer import Trainer
+from trainer import IR_Trainer as Trainer
 from utils import utils
 from utils.logger import logger, setup_logger
 
