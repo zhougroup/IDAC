@@ -197,7 +197,7 @@ class IDAC(object):
     def sample_action(self, state):
         with torch.no_grad():
             state = torch.FloatTensor(state.reshape(1, -1)).to(self.device)
-            action = self.actor(state)
+            action = self.actor.sample(state)
         return action.cpu().data.numpy().flatten()
 
     def quantile_regression_loss(self, input, target, tau, weight=1.0):
