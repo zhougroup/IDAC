@@ -236,7 +236,6 @@ class IDAC(object):
         Update Alpha
         """
         new_actions, log_pi = self.actor(obs)
-
         if self.use_automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
             self.alpha_optimizer.zero_grad()
@@ -246,6 +245,17 @@ class IDAC(object):
         else:
             alpha_loss = 0
             alpha = self.alpha
+        """
+        Update Policy
+        """
+        q1_new_actions = self.gf1.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
+        q2_new_actions = self.gf2.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
+        q_new_actions = torch.min(q1_new_actions, q2_new_actions)
+
+        policy_loss = (alpha * log_pi - q_new_actions).mean()
+        self.actor_optimizer.zero_grad()
+        policy_loss.backward()
+        self.actor_optimizer.step()
         """
         Update Distributional Critics
         """
@@ -270,17 +280,6 @@ class IDAC(object):
         self.gf2_optimizer.zero_grad()
         gf2_loss.backward()
         self.gf2_optimizer.step()
-        """
-        Update Policy
-        """
-        q1_new_actions = self.gf1.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q2_new_actions = self.gf2.sample(obs, new_actions, num_samples=10).mean(dim=1, keepdims=True)
-        q_new_actions = torch.min(q1_new_actions, q2_new_actions)
-
-        policy_loss = (alpha * log_pi - q_new_actions).mean()
-        self.actor_optimizer.zero_grad()
-        policy_loss.backward()
-        self.actor_optimizer.step()
         """
         Soft Updates
         """
