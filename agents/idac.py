@@ -51,7 +51,7 @@ class G_Actor(nn.Module):
         log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
         log_prob = log_prob.sum(dim=1, keepdim=True)
 
-        action *= self.max_action
+        action = action * self.max_action
 
         return action, log_prob
 
