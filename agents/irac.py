@@ -213,10 +213,9 @@ class IRAC(object):
             tau_hat[:, 1:] = (tau[:, 1:] + tau[:, :-1]) / 2.
         return tau_hat
 
-    def perturb_data(self, state, action, s_std=1e-3, a_std=1e-2):
-        state_p = torch.randn_like(state) * s_std + state
+    def perturb_action(self, action, a_std=1e-2):
         action_p = torch.randn_like(action) * a_std + action
-        return state_p, action_p.clamp(-self.max_action, self.max_action)
+        return action_p.clamp(-self.max_action, self.max_action)
 
     def train_from_batch(self, replay_buffer, num_disc_iters=2):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
@@ -244,32 +243,13 @@ class IRAC(object):
         gf2_loss.backward()
         self.gf2_optimizer.step()
         """
-        Update Policy
-        """
-        new_actions = self.actor(obs)
-        q1_new_actions = self.gf1(obs, new_actions)
-        q2_new_actions = self.gf2(obs, new_actions)
-        q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
-
-        obs_g, _, _, _, _ = replay_buffer.sample(self.batch_size)
-        actions_g = self.actor(obs_g)
-        fake_samples = torch.cat([obs_g, actions_g], 1)
-        generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
-                                               torch.ones(fake_samples.size(0), 1, device=self.device))
-
-        policy_loss = self.alpha * generator_loss - q_new_actions
-        self.actor_optimizer.zero_grad()
-        policy_loss.backward()
-        self.actor_optimizer.step()
-        """
         Update Discriminator
         """
         for _ in range(num_disc_iters):
-            obs_p, actions_p = self.perturb_data(obs, actions)
-            true_samples = torch.cat([obs_p, actions_p], 1)
-            obs_g, _, _, _, _ = replay_buffer.sample(self.batch_size)
-            actions_g = self.actor(obs_g)
-            fake_samples = torch.cat([obs_g, actions_g], 1)
+            actions_p = self.perturb_action(actions)
+            true_samples = torch.cat([obs, actions_p], 1)
+            actions_pi = self.actor(obs)
+            fake_samples = torch.cat([obs, actions_pi], 1)
 
             real_loss = self.adversarial_loss(self.discriminator(true_samples),
                                               torch.ones(true_samples.size(0), 1, device=self.device))
@@ -279,6 +259,22 @@ class IRAC(object):
             self.discriminator_optimizer.zero_grad()
             discriminator_loss.backward()
             self.discriminator_optimizer.step()
+        """
+        Update Policy
+        """
+        new_actions = self.actor(obs)
+        q1_new_actions = self.gf1(obs, new_actions)
+        q2_new_actions = self.gf2(obs, new_actions)
+        q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
+
+        fake_samples = torch.cat([obs, new_actions], 1)
+        generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
+                                               torch.ones(fake_samples.size(0), 1, device=self.device))
+
+        policy_loss = self.alpha * generator_loss - q_new_actions
+        self.actor_optimizer.zero_grad()
+        policy_loss.backward()
+        self.actor_optimizer.step()
         """
         Soft Updates
         """
