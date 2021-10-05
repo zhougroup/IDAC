@@ -175,7 +175,7 @@ class IRAC(object):
 
         self.adversarial_loss = torch.nn.BCELoss()
 
-        self.alpha = torch.FloatTensor([log_alpha]).exp().to(self.device)
+        self.alpha = torch.tensor(log_alpha, device=device).exp()
 
     def sample_action(self, state):
         with torch.no_grad():
