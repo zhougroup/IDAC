@@ -29,8 +29,8 @@ if __name__ == "__main__":
     parser.add_argument("--noise_dim", default=None, type=int)
     parser.add_argument("--log_alpha", default=2.0, type=float)
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
-    parser.add_argument("--pi_bn", default=0, type=int)
-    parser.add_argument("--num_quantiles", default=32, type=int)
+    parser.add_argument("--pi_bn", default=1, type=int)
+    # parser.add_argument("--num_quantiles", default=32, type=int)
 
     args = parser.parse_args()
     # d4rl.set_dataset_path('/datasets')
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     action_dim = expl_env.action_space.shape[0]
     max_action = float(expl_env.action_space.high[0])
     if args.noise_dim is None:
-        args.noise_dim = min(10, state_dim // 2)
+        args.noise_dim = min(50, state_dim // 2)
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging

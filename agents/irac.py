@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from utils.distributions import TanhNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
@@ -25,8 +26,8 @@ class Implicit_Actor(nn.Module):
         self.layer_norm = layer_norm
         self.noise_dim = noise_dim
         self.base_fc = []
-        last_size = state_dim + noise_dim
-        for next_size in hidden_sizes:
+        last_size = state_dim
+        for next_size in hidden_sizes[:-1]:
             self.base_fc += [
                 nn.Linear(last_size, next_size),
                 nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
@@ -36,8 +37,15 @@ class Implicit_Actor(nn.Module):
         self.base_fc = nn.Sequential(*self.base_fc)
 
         last_hidden_size = hidden_sizes[-1]
+        self.noise_fc = nn.Sequential(
+            nn.Linear(noise_dim, last_hidden_size),
+            nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
+            nn.Tanh()
+        )
 
         self.last_fc = nn.Sequential(
+            nn.Linear(last_hidden_size, last_hidden_size),
+            nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
             nn.Linear(last_hidden_size, action_dim),
             nn.Tanh()
         )
@@ -46,12 +54,13 @@ class Implicit_Actor(nn.Module):
 
     def forward(self, state):
         noise = torch.randn((state.size(0), self.noise_dim), device=self.device)
-        s_n = torch.cat([state, noise], dim=1)
 
-        a = self.base_fc(s_n)
-        a = self.last_fc(a)
+        s_h = self.base_fc(state)
+        n_h = self.noise_fc(noise)
 
-        action = a * self.max_action
+        h = s_h * n_h
+
+        action = self.last_fc(h) * self.max_action
 
         return action
 
@@ -290,5 +299,3 @@ class IRAC(object):
             discriminator_loss=discriminator_loss.cpu().data.numpy(),
             q_values=q_new_actions.cpu().data.numpy(),
         )
-
-
