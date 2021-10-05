@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
     parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
     parser.add_argument("--noise_dim", default=5, type=int)
-    parser.add_argument("--log_alpha", default=2.0, type=float)
+    parser.add_argument("--log_alpha", default=0.5, type=float)
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
     parser.add_argument("--pi_bn", default=0, type=int)
     parser.add_argument("--num_quantiles", default=32, type=int)
