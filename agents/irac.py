@@ -64,6 +64,49 @@ class Implicit_Actor(nn.Module):
 
         return action
 
+class Implicit_Actor_2(nn.Module):
+    """
+    Implicit Policy
+    """
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 noise_dim,
+                 max_action,
+                 device,
+                 hidden_sizes=[256,256],
+                 layer_norm=False):
+        super(Implicit_Actor_2, self).__init__()
+
+        self.layer_norm = layer_norm
+        self.noise_dim = noise_dim
+        self.base_fc = []
+        last_size = state_dim + noise_dim
+        for next_size in hidden_sizes:
+            self.base_fc += [
+                nn.Linear(last_size, next_size),
+                nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
+                nn.ReLU(inplace=True),
+            ]
+            last_size = next_size
+        self.base_fc = nn.Sequential(*self.base_fc)
+
+        last_hidden_size = hidden_sizes[-1]
+        self.last_fc = nn.Sequential(
+            nn.Linear(last_hidden_size, action_dim),
+            nn.Tanh()
+        )
+        self.max_action = max_action
+        self.device = device
+
+    def forward(self, state):
+        noise = torch.randn((state.size(0), self.noise_dim), device=self.device)
+        s_n = torch.cat([state, noise], dim=1)
+        a = self.base_fc(state)
+        a = self.last_fc(a) * self.max_action
+
+        return a
+
 
 class Critic(nn.Module):
     """
@@ -146,13 +189,13 @@ class IRAC(object):
         self.action_dim = action_dim
         self.num_quantiles = num_quantiles
 
-        self.actor = Implicit_Actor(state_dim,
-                                    action_dim,
-                                    noise_dim,
-                                    max_action,
-                                    device,
-                                    layer_norm=pi_bn,
-                                    hidden_sizes=hidden_sizes).to(device)
+        self.actor = Implicit_Actor_2(state_dim,
+                                      action_dim,
+                                      noise_dim,
+                                      max_action,
+                                      device,
+                                      layer_norm=pi_bn,
+                                      hidden_sizes=hidden_sizes).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr, betas=(0.5, 0.999))
 
@@ -216,7 +259,7 @@ class IRAC(object):
             tau_hat[:, 1:] = (tau[:, 1:] + tau[:, :-1]) / 2.
         return tau_hat
 
-    def perturb_action(self, action, a_std=1e-2):
+    def perturb_action(self, action, a_std=5e-2):
         action_p = torch.randn_like(action) * a_std + action
         return action_p.clamp(-self.max_action, self.max_action)
 
@@ -228,9 +271,12 @@ class IRAC(object):
         """
         with torch.no_grad():
             new_next_actions = self.actor_target(next_obs)
+            next_fake_samples = torch.cat([next_obs, new_next_actions], 1)
+            q_penalty = self.adversarial_loss(self.discriminator(next_fake_samples),
+                                              torch.ones(next_fake_samples.size(0), 1, device=self.device))
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values)
+            target_g_values = torch.min(target_g1_values, target_g2_values) - self.alpha * q_penalty
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
