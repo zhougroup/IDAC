@@ -293,7 +293,8 @@ class IRAC(object):
             gf2_loss=gf2_loss.cpu().data.numpy(),
             actor_loss=policy_loss.cpu().data.numpy(),
             generator_loss=generator_loss.cpu().data.numpy(),
-            discriminator_loss=discriminator_loss.cpu().data.numpy()
+            discriminator_loss=discriminator_loss.cpu().data.numpy(),
+            q_values=q_new_actions.cpu().data.numpy(),
         )
 
 
