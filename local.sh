@@ -1,16 +1,20 @@
 python run_idac.py \
---ExpID test \
+--ExpID test2 \
 --device "cuda:0" \
+--use_automatic_entropy_tuning 0 \
 --env_name "Hopper-v2" &
 python run_idac.py \
---ExpID test \
+--ExpID test2 \
 --device "cuda:1" \
+--use_automatic_entropy_tuning 0 \
 --env_name "HalfCheetah-v2" &
 python run_idac.py \
---ExpID test \
+--ExpID test2 \
 --device "cuda:2" \
+--use_automatic_entropy_tuning 0 \
 --env_name "Ant-v2" &
 python run_idac.py \
---ExpID test \
+--ExpID test2 \
 --device "cuda:3" \
+--use_automatic_entropy_tuning 0 \
 --env_name "Walker2d-v2"
