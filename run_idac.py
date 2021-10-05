@@ -14,7 +14,7 @@ if __name__ == "__main__":
     ### Experimental Setups ###
     parser.add_argument("--ExpID", default='Exp1', type=str)  # Experiment ID
     parser.add_argument('--device', default='cpu', type=str)  # device, {"cpu", "cuda", "cuda:0", "cuda:1"}, etc
-    parser.add_argument("--env_name", default="Halfcheetah-v2", type=str)  # OpenAI gym environment name
+    parser.add_argument("--env_name", default="HalfCheetah-v2", type=str)  # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--num_epochs", default=1000, type=int)
     parser.add_argument("--num_iters_per_epoch", default=1000, type=int)

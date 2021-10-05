@@ -14,7 +14,7 @@ if __name__ == "__main__":
     ### Experimental Setups ###
     parser.add_argument("--ExpID", default='Exp1', type=str)  # Experiment ID
     parser.add_argument('--device', default='cpu', type=str)  # device, {"cpu", "cuda", "cuda:0", "cuda:1"}, etc
-    parser.add_argument("--env_name", default="Halfcheetah-v2", type=str)  # OpenAI gym environment name
+    parser.add_argument("--env_name", default="HalfCheetah-v2", type=str)  # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--num_epochs", default=1000, type=int)
     parser.add_argument("--num_iters_per_epoch", default=1000, type=int)
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     ### IDAC Parameters ###
     parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
     parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
-    parser.add_argument("--noise_dim", default=5, type=int)
+    parser.add_argument("--noise_dim", default=None, type=int)
     parser.add_argument("--log_alpha", default=2.0, type=float)
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
     parser.add_argument("--pi_bn", default=0, type=int)
@@ -52,11 +52,11 @@ if __name__ == "__main__":
     action_dim = expl_env.action_space.shape[0]
     max_action = float(expl_env.action_space.high[0])
     if args.noise_dim is None:
-        args.noise_dim = min(10, (state_dim + action_dim) // 2)
+        args.noise_dim = min(50, state_dim)
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging
-    file_name = f"{args.env_name}|{args.ExpID}|bs{args.batch_size}|noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
+    file_name = f"{args.env_name}|{args.ExpID}|bs{args.batch_size}|noise_dim{args.noise_dim}|log_alpha{args.log_alpha}|{args.seed}"
     results_dir = os.path.join(output_dir, file_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
