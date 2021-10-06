@@ -153,12 +153,14 @@ class IR_Trainer(object):
             logger.record_tabular('GF1 Loss', loss['gf1_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('GF2 Loss', loss['gf2_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Actor Loss', loss['actor_loss'] if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('Generator Loss',
-                                  loss['generator_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            # logger.record_tabular('Generator Loss',
+            #                       loss['generator_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Q Values',
                                   loss['q_values'] if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('Discriminator Loss',
-                                  loss['discriminator_loss'] if total_timesteps >= self.start_timesteps else 0.)
+            logger.record_tabular('Q Penalty',
+                                  loss['q_penalty'] if total_timesteps >= self.start_timesteps else 0.)
+            # logger.record_tabular('Discriminator Loss',
+            #                       loss['discriminator_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Average Episodic Reward', eval_res)
 
             logger.dump_tabular()

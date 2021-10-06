@@ -108,6 +108,47 @@ class Implicit_Actor_2(nn.Module):
         return a
 
 
+# Vanilla Variational Auto-Encoder
+class VAE(nn.Module):
+    def __init__(self, state_dim, action_dim, latent_dim, max_action, device):
+        super(VAE, self).__init__()
+        self.e1 = nn.Linear(state_dim + action_dim, 750)
+        self.e2 = nn.Linear(750, 750)
+
+        self.mean = nn.Linear(750, latent_dim)
+        self.log_std = nn.Linear(750, latent_dim)
+
+        self.d1 = nn.Linear(state_dim + latent_dim, 750)
+        self.d2 = nn.Linear(750, 750)
+        self.d3 = nn.Linear(750, action_dim)
+
+        self.max_action = max_action
+        self.latent_dim = latent_dim
+        self.device = device
+
+    def forward(self, state, action):
+        z = F.relu(self.e1(torch.cat([state, action], 1)))
+        z = F.relu(self.e2(z))
+
+        mean = self.mean(z)
+        # Clamped for numerical stability
+        log_std = self.log_std(z).clamp(-4, 15)
+        std = torch.exp(log_std)
+        z = mean + std * torch.randn_like(std)
+
+        u = self.decode(state, z)
+
+        return u, mean, std
+
+    def decode(self, state, z=None):
+        # When sampling from the VAE, the latent vector is clipped to [-0.5, 0.5]
+        if z is None:
+            z = torch.randn((state.shape[0], self.latent_dim)).to(self.device).clamp(-0.5, 0.5)
+
+        a = F.relu(self.d1(torch.cat([state, z], 1)))
+        a = F.relu(self.d2(a))
+        return self.max_action * torch.tanh(self.d3(a))
+
 class Critic(nn.Module):
     """
     Implicit Distributional Critic
@@ -216,10 +257,13 @@ class IRAC(object):
         self.gf1_target = copy.deepcopy(self.gf1)
         self.gf2_target = copy.deepcopy(self.gf2)
 
-        self.discriminator = Discriminator(state_dim=state_dim, action_dim=action_dim).to(device)
-        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=dis_lr, betas=(0.5, 0.999))
+        # self.discriminator = Discriminator(state_dim=state_dim, action_dim=action_dim).to(device)
+        # self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=dis_lr, betas=(0.5, 0.999))
+        # self.adversarial_loss = torch.nn.BCELoss()
 
-        self.adversarial_loss = torch.nn.BCELoss()
+        latent_dim = action_dim * 2
+        self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
+        self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
 
         self.alpha = torch.tensor(log_alpha, device=device).exp()
 
@@ -250,7 +294,7 @@ class IRAC(object):
         Get random monotonically increasing quantiles
         """
         presum_tau = torch.rand(len(obs), self.num_quantiles, device=self.device) + 0.1
-        presum_tau /= presum_tau.sum(dim=-1, keepdims=True)
+        presum_tau /= presum_tau.sum(dim=-1, keepdim=True)
 
         tau = torch.cumsum(presum_tau, dim=1)  # (N, T), note that they are tau1...tauN in the paper
         with torch.no_grad():
@@ -266,17 +310,28 @@ class IRAC(object):
     def train_from_batch(self, replay_buffer, num_disc_iters=2):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
 
+        # Variational Auto-Encoder Training
+        recon, mean, std = self.vae(obs, actions)
+        recon_loss = F.mse_loss(recon, actions)
+        KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean()
+        vae_loss = recon_loss + 0.5 * KL_loss
+
+        self.vae_optimizer.zero_grad()
+        vae_loss.backward()
+        self.vae_optimizer.step()
         """
         Update Distributional Critics
         """
         with torch.no_grad():
             new_next_actions = self.actor_target(next_obs)
-            next_fake_samples = torch.cat([next_obs, new_next_actions], 1)
-            q_penalty = self.adversarial_loss(self.discriminator(next_fake_samples),
-                                              torch.ones(next_fake_samples.size(0), 1, device=self.device))
+            vae_actions = self.vae.decode(next_obs)
+            # next_fake_samples = torch.cat([next_obs, new_next_actions], 1)
+            # q_penalty = self.adversarial_loss(self.discriminator(next_fake_samples),
+            #                                   torch.ones(next_fake_samples.size(0), 1, device=self.device))
+            q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values) - self.alpha * q_penalty
+            target_g_values = torch.min(target_g1_values, target_g2_values) + self.alpha * q_penalty
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
@@ -291,23 +346,23 @@ class IRAC(object):
         self.gf2_optimizer.zero_grad()
         gf2_loss.backward()
         self.gf2_optimizer.step()
-        """
-        Update Discriminator
-        """
-        for _ in range(num_disc_iters):
-            actions_p = self.perturb_action(actions)
-            true_samples = torch.cat([obs, actions_p], 1)
-            actions_pi = self.actor(obs)
-            fake_samples = torch.cat([obs, actions_pi], 1)
-
-            real_loss = self.adversarial_loss(self.discriminator(true_samples),
-                                              torch.ones(true_samples.size(0), 1, device=self.device))
-            fake_loss = self.adversarial_loss(self.discriminator(fake_samples.detach()),
-                                              torch.zeros(fake_samples.size(0), 1, device=self.device))
-            discriminator_loss = (real_loss + fake_loss) / 2
-            self.discriminator_optimizer.zero_grad()
-            discriminator_loss.backward()
-            self.discriminator_optimizer.step()
+        # """
+        # Update Discriminator
+        # """
+        # for _ in range(num_disc_iters):
+        #     actions_p = self.perturb_action(actions)
+        #     true_samples = torch.cat([obs, actions_p], 1)
+        #     actions_pi = self.actor(obs)
+        #     fake_samples = torch.cat([obs, actions_pi], 1)
+        #
+        #     real_loss = self.adversarial_loss(self.discriminator(true_samples),
+        #                                       torch.ones(true_samples.size(0), 1, device=self.device))
+        #     fake_loss = self.adversarial_loss(self.discriminator(fake_samples.detach()),
+        #                                       torch.zeros(fake_samples.size(0), 1, device=self.device))
+        #     discriminator_loss = (real_loss + fake_loss) / 2
+        #     self.discriminator_optimizer.zero_grad()
+        #     discriminator_loss.backward()
+        #     self.discriminator_optimizer.step()
         """
         Update Policy
         """
@@ -316,11 +371,11 @@ class IRAC(object):
         q2_new_actions = self.gf2(obs, new_actions)
         q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
 
-        fake_samples = torch.cat([obs, new_actions], 1)
-        generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
-                                               torch.ones(fake_samples.size(0), 1, device=self.device))
+        # fake_samples = torch.cat([obs, new_actions], 1)
+        # generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
+        #                                        torch.ones(fake_samples.size(0), 1, device=self.device))
 
-        policy_loss = self.alpha * generator_loss - q_new_actions
+        policy_loss = - q_new_actions
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
         self.actor_optimizer.step()
@@ -341,7 +396,8 @@ class IRAC(object):
             gf1_loss=gf1_loss.cpu().data.numpy(),
             gf2_loss=gf2_loss.cpu().data.numpy(),
             actor_loss=policy_loss.cpu().data.numpy(),
-            generator_loss=generator_loss.cpu().data.numpy(),
-            discriminator_loss=discriminator_loss.cpu().data.numpy(),
+            # generator_loss=generator_loss.cpu().data.numpy(),
+            # discriminator_loss=discriminator_loss.cpu().data.numpy(),
             q_values=q_new_actions.cpu().data.numpy(),
+            q_penalty=q_penalty.mean().cpu().data.numpy(),
         )
