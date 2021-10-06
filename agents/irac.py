@@ -102,7 +102,7 @@ class Implicit_Actor_2(nn.Module):
     def forward(self, state):
         noise = torch.randn((state.size(0), self.noise_dim), device=self.device)
         s_n = torch.cat([state, noise], dim=1)
-        a = self.base_fc(state)
+        a = self.base_fc(s_n)
         a = self.last_fc(a) * self.max_action
 
         return a
