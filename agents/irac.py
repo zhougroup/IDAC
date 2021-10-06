@@ -331,7 +331,7 @@ class IRAC(object):
             q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values) + self.alpha * q_penalty
+            target_g_values = torch.min(target_g1_values, target_g2_values) - self.alpha / (q_penalty + 1.0)
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
