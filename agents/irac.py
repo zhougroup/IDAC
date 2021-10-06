@@ -220,7 +220,7 @@ class IRAC(object):
             pi_bn=False,                    # policy batch normalization
             cr_bn=False,                    # critic batch normalization
             num_quantiles=21,
-            log_alpha=2.0
+            alpha=2.0
     ):
         self.tau = tau
         self.device = device
@@ -265,7 +265,7 @@ class IRAC(object):
         self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
         self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
 
-        self.alpha = torch.tensor(log_alpha, device=device).exp()
+        self.alpha = torch.tensor(alpha, device=device)
 
     def sample_action(self, state):
         with torch.no_grad():

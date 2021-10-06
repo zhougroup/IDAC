@@ -27,7 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--discount", default=0.99, type=float)  # Discount factor
     parser.add_argument("--tau", default=0.005, type=float)  # Target network update rate
     parser.add_argument("--noise_dim", default=None, type=int)
-    parser.add_argument("--log_alpha", default=2.0, type=float)
+    parser.add_argument("--alpha", default=2.0, type=float)
     parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
     parser.add_argument("--pi_bn", default=1, type=int)
     parser.add_argument("--num_quantiles", default=32, type=int)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging
-    file_name = f"{args.env_name}|{args.ExpID}|bs{args.batch_size}|noise_dim{args.noise_dim}|log_alpha{args.log_alpha}|{args.seed}"
+    file_name = f"{args.env_name}|{args.ExpID}|bs{args.batch_size}|noise_dim{args.noise_dim}|alpha{args.alpha}|{args.seed}"
     results_dir = os.path.join(output_dir, file_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -88,7 +88,7 @@ if __name__ == "__main__":
                  batch_size=args.batch_size,
                  pi_bn=args.pi_bn,
                  num_quantiles=args.num_quantiles,
-                 log_alpha=args.log_alpha)
+                 alpha=args.alpha)
 
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim, args.device)
 
