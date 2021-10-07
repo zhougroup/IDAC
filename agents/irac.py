@@ -307,7 +307,7 @@ class IRAC(object):
         action_p = torch.randn_like(action) * a_std + action
         return action_p.clamp(-self.max_action, self.max_action)
 
-    def train_from_batch(self, replay_buffer, num_disc_iters=2):
+    def train_from_batch(self, replay_buffer, epoch):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
 
         # Variational Auto-Encoder Training
@@ -329,9 +329,10 @@ class IRAC(object):
             # q_penalty = self.adversarial_loss(self.discriminator(next_fake_samples),
             #                                   torch.ones(next_fake_samples.size(0), 1, device=self.device))
             q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
+            scheduled_alpha = (self.alpha - np.exp((epoch - 200) / 800))
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values) + self.alpha * q_penalty
+            target_g_values = torch.min(target_g1_values, target_g2_values) + scheduled_alpha * q_penalty
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
