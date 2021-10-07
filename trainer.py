@@ -157,8 +157,8 @@ class IR_Trainer(object):
             #                       loss['generator_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Q Values',
                                   loss['q_values'] if total_timesteps >= self.start_timesteps else 0.)
-            logger.record_tabular('Q Penalty',
-                                  loss['q_penalty'] if total_timesteps >= self.start_timesteps else 0.)
+            # logger.record_tabular('Q Penalty',
+            #                       loss['q_penalty'] if total_timesteps >= self.start_timesteps else 0.)
             # logger.record_tabular('Discriminator Loss',
             #                       loss['discriminator_loss'] if total_timesteps >= self.start_timesteps else 0.)
             logger.record_tabular('Average Episodic Reward', eval_res)

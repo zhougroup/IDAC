@@ -261,9 +261,9 @@ class IRAC(object):
         # self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=dis_lr, betas=(0.5, 0.999))
         # self.adversarial_loss = torch.nn.BCELoss()
 
-        latent_dim = action_dim * 2
-        self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
-        self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
+        # latent_dim = action_dim * 2
+        # self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
+        # self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
 
         self.alpha = torch.tensor(alpha, device=device)
 
@@ -303,7 +303,7 @@ class IRAC(object):
             tau_hat[:, 1:] = (tau[:, 1:] + tau[:, :-1]) / 2.
         return tau_hat
 
-    def perturb_action(self, action, a_std=5e-2):
+    def perturb_action(self, action, a_std=3e-3):
         action_p = torch.randn_like(action) * a_std + action
         return action_p.clamp(-self.max_action, self.max_action)
 
@@ -311,28 +311,28 @@ class IRAC(object):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
 
         # Variational Auto-Encoder Training
-        recon, mean, std = self.vae(obs, actions)
-        recon_loss = F.mse_loss(recon, actions)
-        KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean()
-        vae_loss = recon_loss + 0.5 * KL_loss
-
-        self.vae_optimizer.zero_grad()
-        vae_loss.backward()
-        self.vae_optimizer.step()
+        # recon, mean, std = self.vae(obs, actions)
+        # recon_loss = F.mse_loss(recon, actions)
+        # KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean()
+        # vae_loss = recon_loss + 0.5 * KL_loss
+        #
+        # self.vae_optimizer.zero_grad()
+        # vae_loss.backward()
+        # self.vae_optimizer.step()
         """
         Update Distributional Critics
         """
         with torch.no_grad():
             new_next_actions = self.actor_target(next_obs)
-            vae_actions = self.vae.decode(next_obs)
+            # vae_actions = self.vae.decode(next_obs)
             # next_fake_samples = torch.cat([next_obs, new_next_actions], 1)
             # q_penalty = self.adversarial_loss(self.discriminator(next_fake_samples),
             #                                   torch.ones(next_fake_samples.size(0), 1, device=self.device))
-            q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
-            scheduled_alpha = (self.alpha - np.exp((epoch - 200) / 800))
+            # q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
+            # scheduled_alpha = (self.alpha - np.exp((epoch - 200) / 800))
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values) + scheduled_alpha * q_penalty
+            target_g_values = torch.min(target_g1_values, target_g2_values)
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
@@ -368,15 +368,18 @@ class IRAC(object):
         Update Policy
         """
         new_actions = self.actor(obs)
+        with torch.no_grad:
+            perturbed_actions = self.perturb_action(new_actions)
         q1_new_actions = self.gf1(obs, new_actions)
         q2_new_actions = self.gf2(obs, new_actions)
         q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
+        regularization = F.mse_loss(new_actions, perturbed_actions)
 
         # fake_samples = torch.cat([obs, new_actions], 1)
         # generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
         #                                        torch.ones(fake_samples.size(0), 1, device=self.device))
 
-        policy_loss = - q_new_actions
+        policy_loss = regularization * self.alpha - q_new_actions
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
         self.actor_optimizer.step()
@@ -400,5 +403,5 @@ class IRAC(object):
             # generator_loss=generator_loss.cpu().data.numpy(),
             # discriminator_loss=discriminator_loss.cpu().data.numpy(),
             q_values=q_new_actions.cpu().data.numpy(),
-            q_penalty=q_penalty.mean().cpu().data.numpy(),
+            # q_penalty=q_penalty.mean().cpu().data.numpy(),
         )
