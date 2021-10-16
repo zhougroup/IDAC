@@ -1,0 +1,24 @@
+python run_idac.py \
+--ExpID test2 \
+--device "cuda:0" \
+--alpha 0.4 \
+--use_automatic_entropy_tuning 0 \
+--env_name "Hopper-v2" &
+python run_idac.py \
+--ExpID test2 \
+--device "cuda:1" \
+--alpha 0.25 \
+--use_automatic_entropy_tuning 0 \
+--env_name "HalfCheetah-v2" &
+python run_idac.py \
+--ExpID test2 \
+--device "cuda:2" \
+--alpha 0.25 \
+--use_automatic_entropy_tuning 0 \
+--env_name "Humanoid-v2" &
+python run_idac.py \
+--ExpID test2 \
+--device "cuda:3" \
+--alpha 0.3 \
+--use_automatic_entropy_tuning 0 \
+--env_name "Walker2d-v2"
