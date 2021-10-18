@@ -405,8 +405,10 @@ class IRAC(object):
         #                                        torch.ones(fake_samples.size(0), 1, device=self.device))
 
         policy_loss = regularization * self.alpha - q_new_actions
+        self.nav_optimizer.zero_grad()
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
+        self.nav_optimizer.step()
         self.actor_optimizer.step()
         """
         Soft Updates
