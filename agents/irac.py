@@ -328,7 +328,8 @@ class IRAC(object):
 
     def train_from_batch(self, replay_buffer, epoch):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
-
+        ct_obs, ct_actions, _, _, _ = replay_buffer.sample(self.batch_size)
+        ct_x = torch.cat((ct_obs, ct_actions), dim=1)
         # Variational Auto-Encoder Training
         # recon, mean, std = self.vae(obs, actions)
         # recon_loss = F.mse_loss(recon, actions)
@@ -349,9 +350,11 @@ class IRAC(object):
             #                                   torch.ones(next_fake_samples.size(0), 1, device=self.device))
             # q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
             # scheduled_alpha = (self.alpha - np.exp((epoch - 200) / 800))
+            ct_y = torch.cat((next_obs, new_next_actions), dim=1)
+            ct_penalty = self.ct_loss(ct_x, ct_y, self.navigator, 0.6)
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values)
+            target_g_values = torch.min(target_g1_values, target_g2_values) + ct_penalty * 0.25
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
@@ -387,14 +390,12 @@ class IRAC(object):
         Update Policy
         """
         new_actions = self.actor(obs)
-        ct_obs, ct_actions, _, _, _ = replay_buffer.sample(self.batch_size)
         # with torch.no_grad:
         #     perturbed_actions = self.perturb_action(new_actions)
         # regularization = F.mse_loss(new_actions, perturbed_actions)
         q1_new_actions = self.gf1(obs, new_actions)
         q2_new_actions = self.gf2(obs, new_actions)
         q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
-        ct_x = torch.cat((ct_obs, ct_actions), dim=1)
         ct_y = torch.cat((obs, new_actions), dim=1)
         regularization = self.ct_loss(ct_x, ct_y, self.navigator, 0.6)
 
