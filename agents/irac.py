@@ -264,9 +264,7 @@ class IRAC(object):
         # self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
         # self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
 
-        self.navigator = nn.Sequential(nn.Linear(state_dim+action_dim, 256),
-                                       nn.ReLU(),
-                                       nn.Linear(256, 5))
+        self.navigator = nn.Sequential(nn.Linear(state_dim+action_dim, 1)).to(device)
         self.nav_optimizer = torch.optim.Adam(self.navigator.parameters(), lr=actor_lr/2.)
 
         self.alpha = torch.tensor(alpha, device=device)
