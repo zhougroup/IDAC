@@ -16,3 +16,14 @@ By simply replacing the `env_name` with other MuJoCo environments, such as `Half
 * `pytorch >= 1.8.0`
 * `mujoco-py<2.1,>=2.0`
 
+### Hyper-parameters
+The pytorch-version is a new implementation, and hence the hyper-parameter setting could be a little bit different from the original paper suggestions.
+We recommend to use default values in the `run_idac.py` file, only except the `use_automatic_entropy_tuning` parameter. 
+
+| env      | use_automatic_entropy_tuning |
+| ----------- | ----------- |
+| Hopper-v2      | False; alpha=0.3       |
+| Walker2d-v2   | True        |
+| HalfCheetah-v2   | True        |
+| Ant-v2   | True        |
+| Humanoid-v2   | True        |
