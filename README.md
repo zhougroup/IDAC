@@ -27,3 +27,13 @@ We recommend to use default values in the `run_idac.py` file, only except the `u
 | HalfCheetah-v2   | True        |
 | Ant-v2   | True        |
 | Humanoid-v2   | True        |
+
+## Citation
+```bibtex
+@inproceedings{yue2020implicit,
+  title={Implicit Distributional Reinforcement Learning},
+  author={Yue, Yuguang and Wang, Zhendong and Zhou, Mingyuan},
+  booktitle = {NeurIPS 2020: Advances in Neural Information Processing Systems},
+  month={Dec.},
+  year = {2020}
+}
