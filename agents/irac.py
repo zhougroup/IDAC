@@ -183,7 +183,6 @@ class Critic(nn.Module):
         q = self.last_fc(h)
         return q
 
-
 class Discriminator(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(Discriminator, self).__init__()
@@ -265,6 +264,9 @@ class IRAC(object):
         # self.vae = VAE(state_dim, action_dim, latent_dim, max_action, device).to(device)
         # self.vae_optimizer = torch.optim.Adam(self.vae.parameters(), lr=actor_lr)
 
+        self.navigator = nn.Sequential(nn.Linear(state_dim+action_dim, 1)).to(device)
+        self.nav_optimizer = torch.optim.Adam(self.navigator.parameters(), lr=actor_lr/2.)
+
         self.alpha = torch.tensor(alpha, device=device)
 
     def sample_action(self, state):
@@ -303,13 +305,31 @@ class IRAC(object):
             tau_hat[:, 1:] = (tau[:, 1:] + tau[:, :-1]) / 2.
         return tau_hat
 
+    def ct_loss(self, x, y, netN, rho):
+        ######################## compute cost ######################
+        f_x = x  # feature of x: B x d
+        f_y = y  # feature of y: B x d
+        cost = torch.norm(f_x[:, None] - f_y, dim=-1).pow(2)  # pairwise cost: B x B
+
+        ######################## compute transport map ######################
+        mse_n = (f_x[:, None] - f_y).pow(2)  # pairwise mse for navigator network: B x B x d
+        d = netN(mse_n).squeeze().mul(-1)  # navigator distance: B x B
+        forward_map = torch.softmax(d, dim=1)  # forward map is in y wise
+        backward_map = torch.softmax(d, dim=0)  # backward map is in x wise
+
+        ######################## compute CT loss ######################
+        # element-wise product of cost and transport map
+        ct = rho * (cost * forward_map).sum(1).mean() + (1 - rho) * (cost * backward_map).sum(0).mean()
+        return ct
+
     def perturb_action(self, action, a_std=3e-3):
         action_p = torch.randn_like(action) * a_std + action
         return action_p.clamp(-self.max_action, self.max_action)
 
     def train_from_batch(self, replay_buffer, epoch):
         obs, actions, next_obs, rewards, not_dones = replay_buffer.sample(self.batch_size)
-
+        ct_obs, ct_actions, _, _, _ = replay_buffer.sample(self.batch_size)
+        ct_x = torch.cat((ct_obs, ct_actions), dim=1)
         # Variational Auto-Encoder Training
         # recon, mean, std = self.vae(obs, actions)
         # recon_loss = F.mse_loss(recon, actions)
@@ -330,9 +350,11 @@ class IRAC(object):
             #                                   torch.ones(next_fake_samples.size(0), 1, device=self.device))
             # q_penalty = torch.sum((new_next_actions - vae_actions) ** 2, dim=1, keepdim=True)
             # scheduled_alpha = (self.alpha - np.exp((epoch - 200) / 800))
+            ct_y = torch.cat((next_obs, new_next_actions), dim=1)
+            ct_penalty = self.ct_loss(ct_x, ct_y, self.navigator, 0.6)
             target_g1_values = self.gf1_target(next_obs, new_next_actions)
             target_g2_values = self.gf2_target(next_obs, new_next_actions)
-            target_g_values = torch.min(target_g1_values, target_g2_values)
+            target_g_values = torch.min(target_g1_values, target_g2_values) + ct_penalty * 0.25
             g_target = rewards + not_dones * self.discount * target_g_values
 
         g1_pred = self.gf1(obs, actions)
@@ -368,20 +390,24 @@ class IRAC(object):
         Update Policy
         """
         new_actions = self.actor(obs)
-        with torch.no_grad:
-            perturbed_actions = self.perturb_action(new_actions)
+        # with torch.no_grad:
+        #     perturbed_actions = self.perturb_action(new_actions)
+        # regularization = F.mse_loss(new_actions, perturbed_actions)
         q1_new_actions = self.gf1(obs, new_actions)
         q2_new_actions = self.gf2(obs, new_actions)
         q_new_actions = torch.min(q1_new_actions, q2_new_actions).mean()
-        regularization = F.mse_loss(new_actions, perturbed_actions)
+        ct_y = torch.cat((obs, new_actions), dim=1)
+        regularization = self.ct_loss(ct_x, ct_y, self.navigator, 0.6)
 
         # fake_samples = torch.cat([obs, new_actions], 1)
         # generator_loss = self.adversarial_loss(self.discriminator(fake_samples),
         #                                        torch.ones(fake_samples.size(0), 1, device=self.device))
 
         policy_loss = regularization * self.alpha - q_new_actions
+        self.nav_optimizer.zero_grad()
         self.actor_optimizer.zero_grad()
         policy_loss.backward()
+        self.nav_optimizer.step()
         self.actor_optimizer.step()
         """
         Soft Updates

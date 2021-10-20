@@ -12,7 +12,7 @@ from utils.logger import logger, setup_logger
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     ### Experimental Setups ###
-    parser.add_argument("--ExpID", default='Exp1', type=str)  # Experiment ID
+    parser.add_argument("--ExpID", default='IDAC', type=str)  # Experiment ID
     parser.add_argument('--device', default='cpu', type=str)  # device, {"cpu", "cuda", "cuda:0", "cuda:1"}, etc
     parser.add_argument("--env_name", default="HalfCheetah-v2", type=str)  # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -29,10 +29,10 @@ if __name__ == "__main__":
     parser.add_argument("--noise_dim", default=5, type=int)
     parser.add_argument("--alpha", default=0.2, type=float)
     parser.add_argument("--target_entropy", default=None, type=float)
-    parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
+    parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [256, 256]; 2: [400, 300]")
     parser.add_argument("--pi_bn", default=0, type=int)
     parser.add_argument("--num_quantiles", default=32, type=int)
-    parser.add_argument("--use_automatic_entropy_tuning", default=True, type=int)
+    parser.add_argument("--use_automatic_entropy_tuning", default=1, type=int)
 
     args = parser.parse_args()
     # d4rl.set_dataset_path('/datasets')
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging
-    file_name = f"{args.env_name}|{args.ExpID}|alpha{args.alpha}|noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
+    file_name = f"{args.env_name}|{args.ExpID}|auto_ent_tuning{args.use_automatic_entropy_tuning}|alpha{args.alpha}|noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
     results_dir = os.path.join(output_dir, file_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
