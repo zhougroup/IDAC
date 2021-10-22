@@ -77,6 +77,94 @@ class G_Actor(nn.Module):
 
         return action
 
+class Implicit_Actor(nn.Module):
+    """
+    Implicit Policy
+    """
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 noise_dim,
+                 noise_num, # L in the paper
+                 max_action,
+                 device,
+                 hidden_sizes=[256,256],
+                 layer_norm=False):
+        super(Implicit_Actor, self).__init__()
+
+        self.layer_norm = layer_norm
+        self.noise_dim = noise_dim
+        self.noise_num = noise_num
+        self.base_fc = []
+        last_size = state_dim + noise_dim
+        for next_size in hidden_sizes:
+            self.base_fc += [
+                nn.Linear(last_size, next_size),
+                nn.LayerNorm(next_size) if layer_norm else nn.Identity(),
+                nn.ReLU(inplace=True),
+            ]
+            last_size = next_size
+        self.base_fc = nn.Sequential(*self.base_fc)
+
+        last_hidden_size = hidden_sizes[-1]
+        self.last_fc_mean = nn.Linear(last_hidden_size, action_dim)
+        self.last_fc_log_std = nn.Linear(last_hidden_size, action_dim)
+
+        self.max_action = max_action
+        self.device = device
+
+    def forward(self, state):
+        action, log_prob_main = self._forward(state, rep=1)
+        _, log_prob_aux = self._forward(state, rep=self.noise_num)
+        log_prob = torch.log((log_prob_main.exp() + log_prob_aux.exp()) / (self.noise_num + 1))
+
+        return action, log_prob
+
+    def sample(self,
+               state,
+               reparameterize=False,
+               deterministic=False):
+        M, _ = state.shape
+        xi = torch.normal(torch.zeros([M, self.noise_dim]),
+                         torch.ones([M, self.noise_dim]))
+        h = self.base_fc(torch.cat((state, xi), axis=-1))
+        mean = self.last_fc_mean(h)
+        std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
+
+        if deterministic:
+            action = torch.tanh(mean) * self.max_action
+        else:
+            tanh_normal = TanhNormal(mean, std, self.device)
+            if reparameterize:
+                action = tanh_normal.rsample()
+            else:
+                action = tanh_normal.sample()
+            action = action * self.max_action
+
+        return action        
+    def _forward(self, state, rep = 1):        
+        M, _ = state.shape
+        state = torch.repeat_interleave(state, rep, dim=0)
+        xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
+                         torch.ones([M * rep, self.noise_dim]))
+        
+        hidden = self.base_fc(torch.cat((state, xi), axis=-1))
+        mean = self.last_fc_mean(hidden)
+        std = self.last_fc_log_std(hidden).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
+        tanh_normal = TanhNormal(mean, std, self.device)
+        action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        log_prob = torch.reshape(log_prob, (M, rep))
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        action = action * self.max_action
+
+        return action, log_prob
+        
+        
+
 
 class D_Critic(nn.Module):
     """
@@ -148,6 +236,10 @@ class IDAC(object):
             target_entropy=None,
             alpha=0.2,
             use_automatic_entropy_tuning=False,
+            implicit_actor_args={
+                "actor_noise_num": 5,
+                "actor_noise_dim": 5
+            }
     ):
         self.tau = tau
         self.device = device
@@ -157,9 +249,17 @@ class IDAC(object):
         self.action_dim = action_dim
         self.num_quantiles = num_quantiles
 
-        self.actor = G_Actor(state_dim, action_dim, max_action, device,
+        # self.actor = G_Actor(state_dim, action_dim, max_action, device,
+        #                      layer_norm=pi_bn,
+        #                      hidden_sizes=hidden_sizes).to(device)
+        actor_noise_dim = implicit_actor_args['actor_noise_dim']
+        actor_noise_num = implicit_actor_args['actor_noise_num']
+        self.actor = Implicit_Actor(state_dim, action_dim, 
+                             actor_noise_dim, 
+                             actor_noise_num, 
+                             max_action, device,
                              layer_norm=pi_bn,
-                             hidden_sizes=hidden_sizes).to(device)
+                             hidden_sizes=hidden_sizes).to(device)                             
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
