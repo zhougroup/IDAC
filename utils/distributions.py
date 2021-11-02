@@ -41,14 +41,9 @@ class TanhNormal(Distribution):
             pre_tanh_value = torch.log(
                 (1+value) / (1-value)
             ) / 2
-        return self.normal_log_prob(self.normal_mean, self.normal_std, pre_tanh_value) - torch.log(
+        return self.normal.log_prob(pre_tanh_value) - torch.log(
             1 - value * value + self.epsilon
         )
-
-    def normal_log_prob(self, loc, scale, value):
-        var = (scale ** 2) + self.epsilon
-        log_scale = math.log(scale + self.epsilon) if isinstance(scale, Real) else scale.log()
-        return -((value - loc) ** 2) / (2 * var) - log_scale - math.log(math.sqrt(2 * math.pi))
 
     def sample(self, return_pretanh_value=False):
         """
