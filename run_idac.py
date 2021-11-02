@@ -29,10 +29,11 @@ if __name__ == "__main__":
     parser.add_argument("--noise_dim", default=5, type=int)
     parser.add_argument("--alpha", default=0.2, type=float)
     parser.add_argument("--target_entropy", default=None, type=float)
-    parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [400, 300]; 2: [256, 256, 64]")
+    parser.add_argument("--hidden_sizes", default=1, type=int, help="1: [256, 256]; 2: [400, 300]")
     parser.add_argument("--pi_bn", default=0, type=int)
     parser.add_argument("--num_quantiles", default=32, type=int)
     parser.add_argument("--use_automatic_entropy_tuning", default=True, type=int)
+    parser.add_argument("--pi_type", default='gauss', type=str, help="gauss or implicit")
 
     args = parser.parse_args()
     # d4rl.set_dataset_path('/datasets')
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         args.hidden_sizes = [256, 256]
     elif args.hidden_sizes == 2:
         args.hidden_sizes = [400, 300]
-    elif args.hidden_sizes == 99: # for test
+    elif args.hidden_sizes == 99:  # for test
         args.hidden_sizes = [10, 10]
         
 
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging
-    file_name = f"{args.env_name}|{args.ExpID}|alpha{args.alpha}|noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
+    file_name = f"{args.env_name}|{args.ExpID}|pi_type-{args.pi_type}|alpha{args.alpha}|q_noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
     results_dir = os.path.join(output_dir, file_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
@@ -95,7 +96,8 @@ if __name__ == "__main__":
                  num_quantiles=args.num_quantiles,
                  target_entropy=None,
                  alpha=args.alpha,
-                 use_automatic_entropy_tuning=args.use_automatic_entropy_tuning)
+                 use_automatic_entropy_tuning=args.use_automatic_entropy_tuning,
+                 pi_type=args.pi_type)
 
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim, args.device)
 
