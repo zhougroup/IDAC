@@ -236,6 +236,7 @@ class IDAC(object):
             target_entropy=None,
             alpha=0.2,
             use_automatic_entropy_tuning=False,
+            pi_type='gauss',
             implicit_actor_args={
                 "actor_noise_num": 5,
                 "actor_noise_dim": 5
@@ -249,17 +250,19 @@ class IDAC(object):
         self.action_dim = action_dim
         self.num_quantiles = num_quantiles
 
-        # self.actor = G_Actor(state_dim, action_dim, max_action, device,
-        #                      layer_norm=pi_bn,
-        #                      hidden_sizes=hidden_sizes).to(device)
-        actor_noise_dim = implicit_actor_args['actor_noise_dim']
-        actor_noise_num = implicit_actor_args['actor_noise_num']
-        self.actor = Implicit_Actor(state_dim, action_dim, 
-                             actor_noise_dim, 
-                             actor_noise_num, 
-                             max_action, device,
-                             layer_norm=pi_bn,
-                             hidden_sizes=hidden_sizes).to(device)                             
+        if pi_type == 'gauss':
+            self.actor = G_Actor(state_dim, action_dim, max_action, device,
+                                 layer_norm=pi_bn,
+                                 hidden_sizes=hidden_sizes).to(device)
+        elif pi_type == 'implicit':
+            actor_noise_dim = implicit_actor_args['actor_noise_dim']
+            actor_noise_num = implicit_actor_args['actor_noise_num']
+            self.actor = Implicit_Actor(state_dim, action_dim,
+                                 actor_noise_dim,
+                                 actor_noise_num,
+                                 max_action, device,
+                                 layer_norm=pi_bn,
+                                 hidden_sizes=hidden_sizes).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
