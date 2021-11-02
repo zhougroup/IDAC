@@ -141,8 +141,9 @@ class Implicit_Actor(nn.Module):
                 action = tanh_normal.sample()
             action = action * self.max_action
 
-        return action        
-    def _forward(self, state, rep = 1):        
+        return action
+
+    def _forward(self, state, rep=1):
         M, _ = state.shape
         state = torch.repeat_interleave(state, rep, dim=0)
         xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
@@ -162,8 +163,6 @@ class Implicit_Actor(nn.Module):
         action = action * self.max_action
 
         return action, log_prob
-        
-        
 
 
 class D_Critic(nn.Module):
