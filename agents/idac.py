@@ -7,7 +7,7 @@ from utils.distributions import TanhNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
-
+eps = 1e-6
 
 class G_Actor(nn.Module):
     """
@@ -81,6 +81,7 @@ class Implicit_Actor(nn.Module):
     """
     Implicit Policy
     """
+    
     def __init__(self,
                  state_dim,
                  action_dim,
@@ -116,7 +117,7 @@ class Implicit_Actor(nn.Module):
     def forward(self, state):
         action, log_prob_main = self._forward(state, rep=1)
         _, log_prob_aux = self._forward(state, rep=self.noise_num)
-        log_prob = torch.log((log_prob_main.exp() + log_prob_aux.exp()) / (self.noise_num + 1))
+        log_prob = torch.log((log_prob_main.exp() + log_prob_aux.exp() + eps) / (self.noise_num + 1))
 
         return action, log_prob
 
