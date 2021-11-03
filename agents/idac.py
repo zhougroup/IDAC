@@ -159,7 +159,7 @@ class Implicit_Actor(nn.Module):
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         log_prob = torch.reshape(log_prob, (M, rep))
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        log_prob = torch.logsumexp(log_prob, dim=-1, keepdim=True)  # log_prob.sum(dim=-1, keepdim=True)
 
         action = action * self.max_action
 
