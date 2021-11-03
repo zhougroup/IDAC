@@ -62,7 +62,7 @@ if __name__ == "__main__":
     output_dir = os.path.join("results", args.ExpID)
 
     # Setup Logging
-    file_name = f"{args.env_name}|{args.ExpID}|pi_type-{args.pi_type}|alpha{args.alpha}|q_noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
+    file_name = f"{args.env_name}|{args.ExpID}|pi_type-{args.pi_type}|ent_auto{args.use_automatic_entropy_tuning}|alpha{args.alpha}|q_noise_dim{args.noise_dim}|num_qtl{args.num_quantiles}|{args.seed}"
     results_dir = os.path.join(output_dir, file_name)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
