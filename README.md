@@ -3,6 +3,9 @@ This is the official repo, which contains Pytorch and Tensorflow implementation 
 
 The pytorch implementation is based on pytorch>=1.8.0, which is easier to use compared to tensorflow version, since the tensorflow code is old and based on tensorflow==1.4. 
 
+IDAC 'Gauss' pytorch version has been well implemented and even have better performance than the results reported. 
+IDAC 'Semi-Implciit' pytorch version is still under implementation and tunning. 
+
 ### Quick Start
 To run the experiment, just use run_idac.py file, for example,
 
