@@ -126,8 +126,9 @@ class Implicit_Actor(nn.Module):
                reparameterize=False,
                deterministic=False):
         M, _ = state.shape
-        xi = torch.normal(torch.zeros([M, self.noise_dim]),
-                         torch.ones([M, self.noise_dim])).to(self.device)
+        xi = torch.randn((1, self.noise_dim), device=self.device).repeat(M, 1)
+        # xi = torch.normal(torch.zeros([M, self.noise_dim]),
+        #                  torch.ones([M, self.noise_dim]), device=self.device)
         h = self.base_fc(torch.cat((state, xi), axis=-1))
         mean = self.last_fc_mean(h)
         std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
@@ -147,8 +148,9 @@ class Implicit_Actor(nn.Module):
     def _forward(self, state, rep=1):
         M, _ = state.shape
         state = torch.repeat_interleave(state, rep, dim=0)
-        xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
-                         torch.ones([M * rep, self.noise_dim])).to(self.device)
+        xi = torch.randn((rep, self.noise_dim), device=self.device).repeat(M, 1)
+        # xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
+        #                  torch.ones([M * rep, self.noise_dim]), device=self.device)
         
         hidden = self.base_fc(torch.cat((state, xi), axis=-1))
         mean = self.last_fc_mean(hidden)
@@ -159,7 +161,7 @@ class Implicit_Actor(nn.Module):
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         log_prob = torch.reshape(log_prob, (M, rep))
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        log_prob = torch.logsumexp(log_prob, dim=-1, keepdim=True)
 
         action = action * self.max_action
 
