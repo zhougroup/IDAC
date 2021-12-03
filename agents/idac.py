@@ -7,6 +7,7 @@ from utils.distributions import TanhNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
+LOG_PROB_MIN = -1E4
 EPS = 1e-6
 
 class G_Actor(nn.Module):
@@ -174,7 +175,7 @@ class Implicit_Actor(nn.Module):
         tanh_normal = TanhNormal(mean, std, self.device)
         # action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
         action = torch.repeat_interleave(action, self.noise_num, dim=0)
-        log_prob = tanh_normal.log_prob(action)
+        log_prob = tanh_normal.log_prob(action).clamp_min(LOG_PROB_MIN)
         log_prob = log_prob.sum(dim=-1, keepdim=True).view(M, self.noise_num).logsumexp(dim=-1, keepdim=True)
 
         # log_prob = torch.reshape(log_prob, (M, rep))
