@@ -148,7 +148,7 @@ class Implicit_Actor(nn.Module):
     def _forward(self, state):
         xi = torch.randn((1, self.noise_dim), device=self.device).repeat(state.shape[0], 1)
         h = torch.cat((state, xi), axis=-1)
-        h = self.base_fc(state)
+        h = self.base_fc(h)
         mean = self.last_fc_mean(h)
         std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
 
