@@ -7,7 +7,7 @@ from utils.distributions import TanhNormal
 
 LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
-LOG_PROB_MIN = -50.
+LOG_PROB_MIN = -25.
 EPS = 1e-6
 
 class G_Actor(nn.Module):
