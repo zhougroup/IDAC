@@ -20,7 +20,7 @@ class TanhNormal(Distribution):
         """
         self.normal_mean = normal_mean
         self.normal_std = normal_std
-        self.normal = Normal(normal_mean, normal_std + 1e-6)
+        self.normal = Normal(normal_mean, normal_std)
         self.epsilon = epsilon
         self.device = device
 

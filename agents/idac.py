@@ -116,11 +116,50 @@ class Implicit_Actor(nn.Module):
         self.device = device
 
     def forward(self, state):
-        action, log_prob_main = self._forward(state)
-        log_prob_aux = self._entropy(state, action)
-        log_prob = torch.log((log_prob_main.exp() + log_prob_aux.exp() + EPS) / (self.noise_num + 1))
+        action, pre_tanh_action, prob_main = self._forward(state)
+        prob_aux = self._entropy(state, action, pre_tanh_action)
+        log_prob = torch.log((prob_main + prob_aux + EPS) / (self.noise_num + 1))
 
+        action = action * self.max_action
         return action, log_prob
+
+    def _forward(self, state):
+        xi = torch.randn((1, self.noise_dim), device=self.device).repeat(state.shape[0], 1)
+        h = torch.cat((state, xi), axis=-1)
+        h = self.base_fc(h)
+        mean = self.last_fc_mean(h)
+        std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
+
+        tanh_normal = TanhNormal(mean, std, self.device)
+        action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
+        log_prob = log_prob.sum(dim=1, keepdim=True)
+
+        # action = action * self.max_action
+
+        return action, pre_tanh_value, log_prob.exp()
+
+    def _entropy(self, state, action, pre_tanh_action):
+        M, _ = state.shape
+        state = torch.repeat_interleave(state, self.noise_num, dim=0)
+        xi = torch.randn((self.noise_num, self.noise_dim), device=self.device).repeat(M, 1)
+        # xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
+        #                  torch.ones([M * rep, self.noise_dim]), device=self.device)
+        
+        hidden = self.base_fc(torch.cat((state, xi), axis=-1))
+        mean = self.last_fc_mean(hidden)
+        std = self.last_fc_log_std(hidden).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
+        tanh_normal = TanhNormal(mean, std, self.device)
+        # action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
+        action = torch.repeat_interleave(action, self.noise_num, dim=0)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_action).clamp_min(LOG_PROB_MIN)
+        log_prob = log_prob.sum(dim=-1, keepdim=True).view(M, self.noise_num)
+        prob = log_prob.exp().sum(dim=-1, keepdim=True)
+
+        # log_prob = torch.reshape(log_prob, (M, rep))
+        # log_prob = torch.logsumexp(log_prob, dim=-1, keepdim=True)
+
+        return prob
 
     def sample(self,
                state,
@@ -145,43 +184,6 @@ class Implicit_Actor(nn.Module):
             action = action * self.max_action
 
         return action
-
-    def _forward(self, state):
-        xi = torch.randn((1, self.noise_dim), device=self.device).repeat(state.shape[0], 1)
-        h = torch.cat((state, xi), axis=-1)
-        h = self.base_fc(h)
-        mean = self.last_fc_mean(h)
-        std = self.last_fc_log_std(h).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
-
-        tanh_normal = TanhNormal(mean, std, self.device)
-        action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
-        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
-        log_prob = log_prob.sum(dim=1, keepdim=True)
-
-        action = action * self.max_action
-
-        return action, log_prob
-
-    def _entropy(self, state, action):
-        M, _ = state.shape
-        state = torch.repeat_interleave(state, self.noise_num, dim=0)
-        xi = torch.randn((self.noise_num, self.noise_dim), device=self.device).repeat(M, 1)
-        # xi = torch.normal(torch.zeros([M * rep, self.noise_dim]),
-        #                  torch.ones([M * rep, self.noise_dim]), device=self.device)
-        
-        hidden = self.base_fc(torch.cat((state, xi), axis=-1))
-        mean = self.last_fc_mean(hidden)
-        std = self.last_fc_log_std(hidden).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
-        tanh_normal = TanhNormal(mean, std, self.device)
-        # action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
-        action = torch.repeat_interleave(action, self.noise_num, dim=0)
-        log_prob = tanh_normal.log_prob(action).clamp_min(LOG_PROB_MIN)
-        log_prob = log_prob.sum(dim=-1, keepdim=True).view(M, self.noise_num).logsumexp(dim=-1, keepdim=True)
-
-        # log_prob = torch.reshape(log_prob, (M, rep))
-        # log_prob = torch.logsumexp(log_prob, dim=-1, keepdim=True)
-
-        return log_prob
 
 
 class D_Critic(nn.Module):
@@ -276,11 +278,11 @@ class IDAC(object):
             actor_noise_dim = implicit_actor_args['actor_noise_dim']
             actor_noise_num = implicit_actor_args['actor_noise_num']
             self.actor = Implicit_Actor(state_dim, action_dim,
-                                 actor_noise_dim,
-                                 actor_noise_num,
-                                 max_action, device,
-                                 layer_norm=pi_bn,
-                                 hidden_sizes=hidden_sizes).to(device)
+                                        actor_noise_dim,
+                                        actor_noise_num,
+                                        max_action, device,
+                                        layer_norm=pi_bn,
+                                        hidden_sizes=hidden_sizes).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
