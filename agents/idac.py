@@ -152,6 +152,7 @@ class Implicit_Actor(nn.Module):
         tanh_normal = TanhNormal(mean, std, self.device)
         # action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
         action = torch.repeat_interleave(action, self.noise_num, dim=0)
+        pre_tanh_action = torch.repeat_interleave(pre_tanh_action, self.noise_num, dim=0)
         log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_action).clamp_min(LOG_PROB_MIN)
         log_prob = log_prob.sum(dim=-1, keepdim=True).view(M, self.noise_num)
         prob = log_prob.exp().sum(dim=-1, keepdim=True)
