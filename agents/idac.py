@@ -5,9 +5,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from utils.distributions import TanhNormal
 
-LOG_SIG_MAX = 2
-LOG_SIG_MIN = -20
-LOG_PROB_MIN = -25.
+LOG_SIG_MIN = -20.
+LOG_SIG_MAX = 2.
+LOG_PROB_MIN = -10.
+LOG_PROB_MAX = 10.
 EPS = 1e-6
 
 class G_Actor(nn.Module):
@@ -150,15 +151,12 @@ class Implicit_Actor(nn.Module):
         mean = self.last_fc_mean(hidden)
         std = self.last_fc_log_std(hidden).clamp(LOG_SIG_MIN, LOG_SIG_MAX).exp()
         tanh_normal = TanhNormal(mean, std, self.device)
-        # action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
+
         action = torch.repeat_interleave(action, self.noise_num, dim=0)
         pre_tanh_action = torch.repeat_interleave(pre_tanh_action, self.noise_num, dim=0)
-        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_action).clamp_min(LOG_PROB_MIN)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_action).clamp(LOG_PROB_MIN, LOG_PROB_MAX)
         log_prob = log_prob.sum(dim=-1, keepdim=True).view(M, self.noise_num)
         prob = log_prob.exp().sum(dim=-1, keepdim=True)
-
-        # log_prob = torch.reshape(log_prob, (M, rep))
-        # log_prob = torch.logsumexp(log_prob, dim=-1, keepdim=True)
 
         return prob
 
