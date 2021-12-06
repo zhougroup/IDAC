@@ -8,7 +8,7 @@ from utils.distributions import TanhNormal
 LOG_SIG_MIN = -20.
 LOG_SIG_MAX = 2.
 LOG_PROB_MIN = -10.
-LOG_PROB_MAX = 5.
+LOG_PROB_MAX = 10.
 EPS = 1e-6
 
 class G_Actor(nn.Module):
@@ -133,8 +133,8 @@ class Implicit_Actor(nn.Module):
 
         tanh_normal = TanhNormal(mean, std, self.device)
         action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
-        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
-        log_prob = log_prob.sum(dim=1, keepdim=True)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value).clamp(LOG_PROB_MIN, LOG_PROB_MAX)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         # action = action * self.max_action
 
