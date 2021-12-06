@@ -8,7 +8,7 @@ from utils.distributions import TanhNormal
 LOG_SIG_MIN = -20.
 LOG_SIG_MAX = 2.
 LOG_PROB_MIN = -10.
-LOG_PROB_MAX = 10.
+LOG_PROB_MAX = 5.
 EPS = 1e-6
 
 class G_Actor(nn.Module):
@@ -257,7 +257,7 @@ class IDAC(object):
             use_automatic_entropy_tuning=False,
             pi_type='gauss',
             implicit_actor_args={
-                "actor_noise_num": 5,
+                "actor_noise_num": 10,
                 "actor_noise_dim": 5
             }
     ):
