@@ -13,7 +13,12 @@ To run the experiment, just use run_idac.py file, for example,
 --device "cuda:0"
 --env_name "Hopper-v2"`
 
-By simply replacing the `env_name` with other MuJoCo environments, such as `HalfCheetah-v2`, you could train an IDAC agent on the selected tasks. 
+By simply replacing the `env_name` with other MuJoCo environments, such as `HalfCheetah-v2`, you could train an IDAC agent on the selected tasks. By adding `pi_type` argument, you can control to use the two kinds of actor, semi-implicit actor (SIA) and gaussian actor, proposed in the paper. For using SIA, for example, you could run
+
+`python run_idac.py
+--device "cuda:0"
+--env_name "Hopper-v2"
+--pi_type "implicit"`
 
 ### Requirements
 * `pytorch >= 1.8.0`
