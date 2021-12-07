@@ -133,8 +133,8 @@ class Implicit_Actor(nn.Module):
 
         tanh_normal = TanhNormal(mean, std, self.device)
         action, pre_tanh_value = tanh_normal.rsample(return_pretanh_value=True)
-        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value)
-        log_prob = log_prob.sum(dim=1, keepdim=True)
+        log_prob = tanh_normal.log_prob(action, pre_tanh_value=pre_tanh_value).clamp(LOG_PROB_MIN, LOG_PROB_MAX)
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         # action = action * self.max_action
 
@@ -257,7 +257,7 @@ class IDAC(object):
             use_automatic_entropy_tuning=False,
             pi_type='gauss',
             implicit_actor_args={
-                "actor_noise_num": 5,
+                "actor_noise_num": 10,
                 "actor_noise_dim": 5
             }
     ):
